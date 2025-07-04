@@ -1,0 +1,58 @@
+name: Build & Push WAS to ECR
+
+on:
+  push:
+    paths:
+      - 'was/**'
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: ap-northeast-2
+      ECR_REPOSITORY: was
+      ECR_REGISTRY: 620832535900.dkr.ecr.ap-northeast-2.amazonaws.com
+
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v3
+
+    - name: Set up Java 11 for Maven
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '11'
+
+    - name: Clone petclinic repository and build WAR
+      run: |
+        git clone https://github.com/SteveKimbesplsin/petclinic_btc.git was/petclinic
+        cd was/petclinic
+        sed -i '/endpoint\|id\|password/d' pom.xml  # DB 정보 제거
+        ./mvnw clean package -DskipTests -PMySQL
+        cp target/*.war ../petclinic.war  # WAR 파일 복사
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+    - name: Build Docker image
+      run: |
+        cd was
+        docker build -t $ECR_REPOSITORY .
+
+    - name: Tag & Push image to ECR
+      run: |
+        docker tag $ECR_REPOSITORY:latest $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
