@@ -1,0 +1,49 @@
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: njt-eks-petclinic
+  region: ap-northeast-2
+  version: "1.31"
+
+iam:
+  withOIDC: true
+
+# VPC 및 서브넷 설정
+vpc:
+  id: vpc-0b37aabc23a889fb0
+  subnets:
+    private:  
+      ap-northeast-2a-private:  
+        id: subnet-0bc2dc11ea2518a38
+      ap-northeast-2c-private:
+        id: subnet-0e6c0d67dda34d30f
+
+# 노드 그룹 설정
+managedNodeGroups:
+  - name: njt-NodeGroups
+    desiredCapacity: 2
+    minSize: 2
+    maxSize: 6
+    instanceType: t3.medium
+    privateNetworking: true
+    subnets:
+      - subnet-0bc2dc11ea2518a38
+      - subnet-0e6c0d67dda34d30f
+    amiFamily: AmazonLinux2023
+    iam:
+      instanceRoleARN: arn:aws:iam::620832535900:role/njt-eks-worker
+    ssh:
+      allow: true
+      publicKeyName: njt
+
+# 애드온 설정
+addons:
+  - name: vpc-cni
+    version: 1.19.2
+    configurationValues: '{"env":{"ENABLE_PREFIX_DELEGATION":"true", "ENABLE_POD_ENI":"true", "POD_SECURITY_GROUP_ENFORCING_MODE":"standard"},"enableNetworkPolicy": "true", "nodeAgent": {"enablePolicyEventLogs": "true"}}'
+    resolveConflicts: overwrite
+  - name: kube-proxy
+    version: latest
+  - name: coredns
+    version: latest
